@@ -17,7 +17,11 @@ export const OBSTACLES: readonly Obstacle[] = [
   { x: -7, z: -9, sx: 3, sy: 2, sz: 3 },
   { x: 9, z: -15, sx: 2, sy: 3, sz: 2 },
   { x: -4, z: 6, sx: 2, sy: 1.5, sz: 2 },
-  { x: 0, z: -26, sx: 8, sy: 2.5, sz: 1 }, // pared al fondo
+  // pared al fondo hecha de bloques iguales, asi la textura no se estira
+  { x: -3, z: -26, sx: 2, sy: 2.5, sz: 1 },
+  { x: -1, z: -26, sx: 2, sy: 2.5, sz: 1 },
+  { x: 1, z: -26, sx: 2, sy: 2.5, sz: 1 },
+  { x: 3, z: -26, sx: 2, sy: 2.5, sz: 1 },
 ];
 
 // angulo del canon en grados, los dos extremos se pueden alcanzar
