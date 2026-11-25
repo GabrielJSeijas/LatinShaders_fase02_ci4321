@@ -1,0 +1,74 @@
+// Estado del juego, lo comparten las dos partes.
+// B (input/fisica) lo modifica y A (render) solo lo lee para dibujar.
+// Aqui no va nada de WebGL.
+import { vec3 } from 'gl-matrix';
+
+// limites de la torreta en X
+export const TURRET_X_MIN = -4;
+export const TURRET_X_MAX = 4;
+
+// angulo del canon en grados, los dos extremos se pueden alcanzar
+export const PITCH_MIN_DEG = 5;
+export const PITCH_MAX_DEG = 90;
+
+export const PROJECTILE_RADIUS = 0.15; // se usa para dibujar y para la colision
+export const TARGET_RADIUS = 0.8;
+
+export type Target = { pos: vec3; radius: number; alive: boolean };
+
+// x, y, z de los objetivos. La torreta esta en z = 0 y dispara hacia -Z, por eso
+// las z son negativas. Cada uno a distinta distancia y altura (lo pide el enunciado).
+// TODO checkpoint 2: ajustarlos junto con POWER_SPEEDS
+const INITIAL_TARGETS: readonly (readonly [number, number, number])[] = [
+  [-2.0, 1.2, -6.0], // cerca y bajo, fuerza 1
+  [1.5, 2.4, -12.0], // medio y alto, fuerza 2
+  [-0.5, 1.6, -19.0], // lejos, fuerza 3
+];
+
+const INITIAL_TURRET_X = 0;
+const INITIAL_PITCH_DEG = 30;
+
+// Es un solo objeto y nadie lo reasigna, asi las referencias que se guardan
+// (por ej. a projectile.pos) siguen sirviendo despues de reiniciar.
+export const state = {
+  turretX: INITIAL_TURRET_X,
+  pitchDeg: INITIAL_PITCH_DEG,
+  power: 1 as 1 | 2 | 3, // POWER_SPEEDS[power - 1]
+  // una sola bala a la vez; si no esta volando se dibuja en la punta del canon
+  projectile: { flying: false, pos: vec3.create(), vel: vec3.create() },
+  targets: [] as Target[],
+  // cuantas veces se reinicio. Lo usa el easter egg para saber que hubo una
+  // partida nueva: basta con comparar con el valor anterior.
+  resetCount: 0,
+};
+
+// Vuelve todo al inicio. Se usa al arrancar y con la R.
+export function resetState(): void {
+  state.resetCount++;
+  state.turretX = INITIAL_TURRET_X;
+  state.pitchDeg = INITIAL_PITCH_DEG;
+  state.power = 1;
+
+  state.projectile.flying = false;
+  vec3.zero(state.projectile.pos);
+  vec3.zero(state.projectile.vel);
+
+  if (state.targets.length !== INITIAL_TARGETS.length) {
+    // la primera vez se crean los objetivos
+    state.targets = INITIAL_TARGETS.map(([x, y, z]) => ({
+      pos: vec3.fromValues(x, y, z),
+      radius: TARGET_RADIUS,
+      alive: true,
+    }));
+    return;
+  }
+
+  // con la R reusamos los mismos objetos en vez de crear nuevos
+  for (let i = 0; i < state.targets.length; i++) {
+    const target = state.targets[i];
+    const [x, y, z] = INITIAL_TARGETS[i];
+    vec3.set(target.pos, x, y, z);
+    target.radius = TARGET_RADIUS;
+    target.alive = true;
+  }
+}
