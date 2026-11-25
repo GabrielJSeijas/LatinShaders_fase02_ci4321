@@ -13,7 +13,7 @@ import { mat3, mat4, vec3 } from 'gl-matrix';
 import { COLOR_PREVIEW } from '../constants';
 import { FIXED_DT, POWER_SPEEDS, stepProjectile } from '../game/physics';
 import { PROJECTILE_RADIUS, state } from '../state';
-import { ATTRIB, LIGHTING } from '../vendor/ff/ff';
+import { ATTRIB, LIGHTING, TEXTURE_2D } from '../vendor/ff/ff';
 import type { FixedFunction } from '../vendor/ff/ff';
 import { muzzleTransform } from './turret';
 
@@ -107,6 +107,7 @@ export function drawPreview(gl: WebGL2RenderingContext, ff: FixedFunction, previ
   // los puntos ya estan en mundo, por eso model = identidad. La normal tambien en
   // identidad para no dejar una vieja cuando se prenda la luz otra vez
   ff.disable(LIGHTING);
+  ff.disable(TEXTURE_2D);
   ff.setColor(COLOR_PREVIEW);
   ff.setModelMatrix(identity4);
   ff.setNormalMatrix(identity3);

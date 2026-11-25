@@ -16,7 +16,7 @@ import { mat3, mat4, vec3 } from 'gl-matrix';
 import { COLOR_BLAST_FLASH, COLOR_BLAST_PARTICLES } from '../constants';
 import type { Mesh } from '../geometry/mesh';
 import { state } from '../state';
-import { LIGHTING } from '../vendor/ff/ff';
+import { LIGHTING, TEXTURE_2D } from '../vendor/ff/ff';
 import type { FixedFunction } from '../vendor/ff/ff';
 
 const TRIGGER_PITCH_DEG = 85; // angulo minimo para que cuente
@@ -122,8 +122,14 @@ export function updateExplosion(dt: number): void {
     // el mismo lugar)
     const pos = state.projectile.pos;
     const bajando = state.projectile.vel[1] < 0;
-    const sobreElTanque =
-      Math.abs(pos[0] - state.turretX) <= TANK_HALF_X && Math.abs(pos[2]) <= TANK_HALF_Z;
+    // pasamos la bala al sistema del tanque (deshacemos su giro) para usar la caja
+    // del tanque sin girar. Es la inversa de Ry(yaw).
+    const yaw = state.tank.yawDeg * (Math.PI / 180);
+    const dx = pos[0] - state.tank.x;
+    const dz = pos[2] - state.tank.z;
+    const localX = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+    const localZ = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+    const sobreElTanque = Math.abs(localX) <= TANK_HALF_X && Math.abs(localZ) <= TANK_HALF_Z;
     if (bajando && sobreElTanque && pos[1] <= TANK_TOP_Y && !turretDestroyed) {
       trigger(pos);
       alreadyBlown = true;
@@ -179,6 +185,7 @@ export function drawExplosion(gl: WebGL2RenderingContext, ff: FixedFunction, sph
   if (elapsed >= DURATION) return;
 
   ff.disable(LIGHTING);
+  ff.disable(TEXTURE_2D);
   ff.setNormalMatrix(normalIdentity);
 
   // destello: crece hasta el 40% de su vida y despues se achica

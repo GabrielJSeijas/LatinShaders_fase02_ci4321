@@ -30,7 +30,7 @@ function fire(shot: Shot): void {
   resetState();
   state.power = shot.power;
   state.pitchDeg = shot.pitchDeg;
-  state.turretX = shot.turretX;
+  state.tank.x = shot.turretX;
   fireProjectile();
 }
 

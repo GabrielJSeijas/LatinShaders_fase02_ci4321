@@ -1,4 +1,4 @@
-// Fase 1: Apuntar al objetivo (con FixedFunction)
+// Fase 2: tanque con movimiento, camaras, texturas y skybox (con FixedFunction 1.2)
 // Aqui solo esta el arranque de WebGL y el game loop. Camara, luz y suelo estan
 // en render/scene.ts, las mallas en geometry/ y cada cosa que se dibuja en render/.
 //
@@ -15,9 +15,16 @@ import { createSphereMesh } from './geometry/sphere';
 import { createBoxMesh } from './geometry/box';
 import { createCylinderMesh } from './geometry/cylinder';
 import { drawScene, setupScene } from './render/scene';
-import { drawTurret } from './render/turret';
+import { createTank, drawTurret, updateTank } from './render/turret';
 import { drawProjectile, drawTargets } from './render/targets';
-import { drawPower } from './render/power';
+import { applyCamera } from './render/camera';
+import { drawSkybox } from './render/skybox';
+import { drawObstacles } from './render/obstacles';
+import { loadTexture } from './render/texture';
+import skyUrl from './textures/sky.png';
+import woodUrl from './textures/Wood_07-512x512.png';
+import camoUrl from './textures/camo.png';
+import { TEXTURE_2D } from './vendor/ff/ff';
 import { createPreview, drawPreview } from './render/preview';
 import { drawExplosion, isTurretDestroyed, updateExplosion } from './render/explosion';
 import type { Preview } from './render/preview';
@@ -53,6 +60,9 @@ const FRAME_SKIP_TOLERANCE = 0.001;
 // Las mallas son unitarias y se crean una vez. El tamano y la posicion salen de
 // la matriz de modelo, asi que con tres alcanza para toda la escena.
 type Meshes = { sphere: Mesh; box: Mesh; cylinder: Mesh };
+// texturas: se cargan una vez al arrancar. Angel puede agregar las suyas aqui
+// (fuente, billboards) con loadTexture.
+type Textures = { sky: WebGLTexture; wood: WebGLTexture; camo: WebGLTexture };
 
 // --- 1. contexto WebGL2
 function getContext(canvas: HTMLCanvasElement): WebGL2RenderingContext {
@@ -72,10 +82,15 @@ function setupState(gl: WebGL2RenderingContext, canvas: HTMLCanvasElement): void
   gl.clearColor(...CLEAR_COLOR);
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE); // las caras de frente son las antihorarias
+  // FF entrega el alfa (textura * material) pero la mezcla es estado del pipeline.
+  // Con alfa 1 (todo lo opaco) no cambia nada; hace falta para billboards e interfaz.
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 }
 
 // fase 2: simulacion, sin WebGL
 function update(dt: number): void {
+  updateTank(); // matrices del arbol del tanque con el state de este frame
   updatePhysics(dt);
   checkCollisions();
   // easter egg: mira como termino el vuelo y si toca hace explotar la bala.
@@ -85,23 +100,30 @@ function update(dt: number): void {
 
 // fase 3: dibujar. Cada modulo de render/ tiene sus matrices temporales, asi que
 // un frame no crea matrices nuevas
-function render(gl: WebGL2RenderingContext, ff: FF, meshes: Meshes, preview: Preview): void {
+function render(gl: WebGL2RenderingContext, ff: FF, meshes: Meshes, textures: Textures, preview: Preview): void {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // camara de la escena 3D: vista y proyeccion. Se pone en cada frame porque la
+  // interfaz 2D (orto) cambia la proyeccion despues de dibujar la escena.
+  applyCamera(ff);
+  drawSkybox(gl, ff, meshes.sphere, textures.sky); // primero: todo se dibuja encima
+
 
   // easter egg: si el tanque se volo a si mismo no se dibuja nada del jugador
   // hasta la R. El estado sigue igual, solo no se dibuja.
   const destruido = isTurretDestroyed();
 
   drawScene(gl, ff, meshes.box); // suelo y marcas
+  drawObstacles(gl, ff, meshes.box, textures.wood);
   if (!destruido) {
-    drawTurret(gl, ff, meshes);
-    drawPower(gl, ff, meshes.box);
+    drawTurret(gl, ff); // el tanque completo (incluye las barras de fuerza)
   }
   drawTargets(gl, ff, meshes.sphere);
   if (!destruido) {
     drawProjectile(gl, ff, meshes.sphere);
   }
 
+  ff.disable(TEXTURE_2D); // lo que sigue no lleva textura
   // estos dos van sin luz y la vuelven a prender al terminar, por eso al final
   drawExplosion(gl, ff, meshes.sphere); // casi siempre no dibuja nada
   if (!destruido) {
@@ -109,7 +131,7 @@ function render(gl: WebGL2RenderingContext, ff: FF, meshes: Meshes, preview: Pre
   }
 }
 
-function run(canvas: HTMLCanvasElement): void {
+async function run(canvas: HTMLCanvasElement): Promise<void> {
   const gl = getContext(canvas);
   const ff = createFixedFunction(gl, { debug: true });
   setupState(gl, canvas);
@@ -122,6 +144,14 @@ function run(canvas: HTMLCanvasElement): void {
   };
   const preview = createPreview(gl);
 
+  // el juego empieza cuando todas las texturas estan listas
+  const textures: Textures = {
+    sky: await loadTexture(gl, skyUrl),
+    wood: await loadTexture(gl, woodUrl, { repeat: true }),
+    camo: await loadTexture(gl, camoUrl),
+  };
+  createTank(meshes, textures.camo);
+
   setupInput();
   resetState();
 
@@ -129,7 +159,7 @@ function run(canvas: HTMLCanvasElement): void {
   const fpsLimit = readFpsLimit();
   const minFrameSeconds = fpsLimit > 0 ? 1 / fpsLimit : 0;
   if (fpsLimit > 0) {
-    console.info(`[fase1] limitador de FPS activo: objetivo ${fpsLimit} FPS.`);
+    console.info(`[fase2] limitador de FPS activo: objetivo ${fpsLimit} FPS.`);
   }
 
   let last: number | null = null; // en el primer frame dt = 0
@@ -144,7 +174,7 @@ function run(canvas: HTMLCanvasElement): void {
 
       processInput(dt);
       update(dt);
-      render(gl, ff, meshes, preview);
+      render(gl, ff, meshes, textures, preview);
     }
 
     // va al final: si algo revienta el loop se para en vez de llenar la consola
@@ -156,4 +186,4 @@ function run(canvas: HTMLCanvasElement): void {
 
 const canvas = document.createElement('canvas');
 document.getElementById('stage')!.append(canvas);
-run(canvas);
+run(canvas).catch(console.error);

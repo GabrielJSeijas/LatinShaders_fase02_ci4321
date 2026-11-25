@@ -8,6 +8,7 @@
 //   r = sin(theta)     radio del anillo a esa altura
 //   x = r * sin(phi)
 //   z = r * cos(phi)   (phi = 0 cae en +Z)
+import { FLOATS_PER_VERTEX } from '../constants';
 import { createMesh } from './mesh';
 import type { Mesh } from './mesh';
 
@@ -37,7 +38,7 @@ export function sphereData(
     throw new RangeError(`sphereData: ${vertexCount} vertices no caben en indices Uint16.`);
   }
 
-  const vertices = new Float32Array(vertexCount * 6);
+  const vertices = new Float32Array(vertexCount * FLOATS_PER_VERTEX);
   let v = 0;
   for (let i = 0; i < rings; i++) {
     const theta = (i * Math.PI) / latBands;
@@ -53,6 +54,11 @@ export function sphereData(
       vertices[v++] = x; // normal (= posicion)
       vertices[v++] = y;
       vertices[v++] = z;
+      // UV: u da la vuelta con la longitud (0 a 1) y v baja del polo norte (1) al
+      // sur (0), asi la imagen se ve con el arriba arriba. La costura repetida
+      // tiene u = 0 y u = 1.
+      vertices[v++] = j / lonBands;
+      vertices[v++] = 1 - i / latBands;
     }
   }
 

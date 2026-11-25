@@ -7,6 +7,7 @@
 // esquina se juntan 3 caras que miran a lados distintos. Con 8 vertices habria
 // que promediar la normal y las aristas se verian redondeadas.
 // Asi que cada cara tiene sus 4 vertices: 6 x 4 = 24.
+import { FLOATS_PER_VERTEX } from '../constants';
 import { createMesh } from './mesh';
 import type { Mesh } from './mesh';
 
@@ -37,7 +38,7 @@ const CORNER_SIGNS: readonly (readonly [number, number])[] = [
 // Lo generamos con la tabla en vez de escribir los 24 vertices a mano para no
 // equivocarnos con el orden.
 export function boxData(): { vertices: Float32Array; indices: Uint16Array } {
-  const vertices = new Float32Array(FACES.length * 4 * 6); // 6 caras, 4 vertices, 6 floats
+  const vertices = new Float32Array(FACES.length * 4 * FLOATS_PER_VERTEX); // 6 caras, 4 vertices, 8 floats
   const indices = new Uint16Array(FACES.length * 2 * 3); // 2 triangulos por cara
 
   let v = 0;
@@ -53,6 +54,10 @@ export function boxData(): { vertices: Float32Array; indices: Uint16Array } {
       for (let k = 0; k < 3; k++) {
         vertices[v++] = normal[k];
       }
+      // UV: cada cara usa toda la textura. su y sv van de -1 a 1, los pasamos a 0..1.
+      // Con (u, v) de la cara, la textura se ve derecha desde afuera.
+      vertices[v++] = (su + 1) / 2;
+      vertices[v++] = (sv + 1) / 2;
     }
 
     // triangulos (0, 1, 2) y (0, 2, 3)

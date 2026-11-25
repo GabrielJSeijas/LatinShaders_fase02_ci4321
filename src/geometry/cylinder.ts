@@ -7,6 +7,7 @@
 // (suaves, para que se vea redondo) y las tapas normales planas (+Y / -Y) para
 // que el borde quede marcado. Como un vertice tiene una sola normal, los del
 // borde hay que duplicarlos. Es lo mismo que pasa con la caja.
+import { FLOATS_PER_VERTEX } from '../constants';
 import { createMesh } from './mesh';
 import type { Mesh } from './mesh';
 
@@ -32,18 +33,20 @@ export function cylinderData(segments: number = CYLINDER_SEGMENTS): {
   // costado: 2 triangulos por division, cada tapa: 1
   const triangleCount = 2 * segments + 2 * segments;
 
-  const vertices = new Float32Array(vertexCount * 6);
+  const vertices = new Float32Array(vertexCount * FLOATS_PER_VERTEX);
   const indices = new Uint16Array(triangleCount * 3);
   let v = 0;
   let t = 0;
 
-  const push = (x: number, y: number, z: number, nx: number, ny: number, nz: number): void => {
+  const push = (x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, w: number): void => {
     vertices[v++] = x;
     vertices[v++] = y;
     vertices[v++] = z;
     vertices[v++] = nx;
     vertices[v++] = ny;
     vertices[v++] = nz;
+    vertices[v++] = u;
+    vertices[v++] = w;
   };
 
   // --- 1. costado
@@ -55,7 +58,8 @@ export function cylinderData(segments: number = CYLINDER_SEGMENTS): {
       const phi = (j * 2 * Math.PI) / segments;
       const x = Math.sin(phi);
       const z = Math.cos(phi);
-      push(x, y, z, x, 0, z);
+      // UV: u da la vuelta (0 a 1), v = 1 arriba y 0 abajo
+      push(x, y, z, x, 0, z, j / segments, y === TOP ? 1 : 0);
     }
   }
   // mismo orden que en la esfera
@@ -77,11 +81,14 @@ export function cylinderData(segments: number = CYLINDER_SEGMENTS): {
     [TOP, 1],
     [BOTTOM, -1],
   ] as const) {
-    const center = v / 6;
-    push(0, y, 0, 0, ny, 0);
+    const center = v / FLOATS_PER_VERTEX;
+    // UV de las tapas: el circulo dentro del cuadrado de la textura, centro en (0.5, 0.5)
+    push(0, y, 0, 0, ny, 0, 0.5, 0.5);
     for (let j = 0; j < columns; j++) {
       const phi = (j * 2 * Math.PI) / segments;
-      push(Math.sin(phi), y, Math.cos(phi), 0, ny, 0);
+      const sx = Math.sin(phi);
+      const cz = Math.cos(phi);
+      push(sx, y, cz, 0, ny, 0, 0.5 + 0.5 * sx, 0.5 + 0.5 * cz);
     }
     const ring = center + 1;
     for (let j = 0; j < segments; j++) {

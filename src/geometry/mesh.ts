@@ -2,17 +2,17 @@
 //
 // Esfera, caja y cilindro usan el mismo vertice intercalado:
 //
-//   x   y   z    nx  ny  nz
-//   0   4   8    12  16  20    <- offset en bytes
-//   |---------- 24 bytes ----------|   <- stride
+//   x   y   z    nx  ny  nz    u   v
+//   0   4   8    12  16  20    24  28   <- offset en bytes
+//   |-------------- 32 bytes --------------|   <- stride
 //
 // Usamos un solo buffer intercalado en vez de uno por atributo, asi cada vertice
 // queda junto en memoria.
 import { mat3 } from 'gl-matrix';
 import type { ReadonlyMat4 } from 'gl-matrix';
-import { ATTRIB } from '../vendor/ff/ff';
+import { ATTRIB, TEXTURE_2D } from '../vendor/ff/ff';
 import type { Color, FixedFunction } from '../vendor/ff/ff';
-import { NORMAL_OFFSET_BYTES, STRIDE_BYTES } from '../constants';
+import { NORMAL_OFFSET_BYTES, STRIDE_BYTES, UV_OFFSET_BYTES } from '../constants';
 
 // con el VAO y la cantidad de indices ya se puede dibujar
 export type Mesh = {
@@ -40,6 +40,10 @@ export function createMesh(gl: WebGL2RenderingContext, vertices: Float32Array, i
   gl.enableVertexAttribArray(ATTRIB.NORMAL);
   gl.vertexAttribPointer(ATTRIB.NORMAL, 3, gl.FLOAT, false, STRIDE_BYTES, NORMAL_OFFSET_BYTES);
 
+  // UV: las coordenadas de textura (u, v)
+  gl.enableVertexAttribArray(ATTRIB.UV);
+  gl.vertexAttribPointer(ATTRIB.UV, 2, gl.FLOAT, false, STRIDE_BYTES, UV_OFFSET_BYTES);
+
   // el ELEMENT_ARRAY_BUFFER si se queda guardado en el VAO
   const indexBuffer = gl.createBuffer()!;
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -52,7 +56,9 @@ export function createMesh(gl: WebGL2RenderingContext, vertices: Float32Array, i
 // se reusa en cada drawMesh para no crear una mat3 cada vez
 const normalMatrix = mat3.create();
 
-// Dibuja una malla con un color y una matriz de modelo.
+// Dibuja una malla con un color y una matriz de modelo. Si le pasas textura, la
+// pone (el color la multiplica: blanco la deja igual, otro color la tine). Sin
+// textura apaga el texturizado.
 // El mismo color va de ambient y diffuse (asi la sombra no queda negra).
 // La matriz normal hay que pasarla a mano porque FF no la calcula al hacer
 // setModelMatrix. Es la inversa transpuesta de la 3x3 del modelo; con escalas no
@@ -64,8 +70,16 @@ export function drawMesh(
   mesh: Mesh,
   model: ReadonlyMat4,
   color: Color,
+  texture: WebGLTexture | null = null,
 ): void {
-  ff.setMaterial({ ambient: color, diffuse: color });
+  // emissive en 0 por si algun dibujo anterior (billboards) lo dejo prendido
+  ff.setMaterial({ ambient: color, diffuse: color, emissive: [0, 0, 0, 1] });
+  if (texture) {
+    ff.enable(TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, texture); // la unidad activa ya es TEXTURE_UNIT
+  } else {
+    ff.disable(TEXTURE_2D);
+  }
   ff.setModelMatrix(model);
   mat3.normalFromMat4(normalMatrix, model);
   ff.setNormalMatrix(normalMatrix);
